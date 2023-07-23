@@ -4,8 +4,6 @@ import random
 import tkinter as tk
 import urllib.request
 from PIL import ImageTk, Image, ImageFont, ImageDraw
-
-
 import dearpygui.dearpygui as dpg
 
 filedir=os.path.dirname(os.path.abspath(__file__))
@@ -22,6 +20,11 @@ class WebImage:
         with urllib.request.urlopen(url) as u:
             raw_data = u.read()
         image = Image.open(io.BytesIO(raw_data))
+        maxwidth = 1000
+        maxheight = 1000
+        if(image.width > maxwidth or image.height > maxheight):
+            image = image.resize(size=(round(image.width/2), round(image.height/2)))
+            print("resized")
         self.image = ImageTk.PhotoImage(image)
 
     def get(self):
@@ -39,20 +42,19 @@ def imgur_linkgen():
     link_list.append(link)
     return link
 
+def save_image():
+    img.save()
+
 def display_next():
     image_display.configure(image=get_random_image())
 
 def get_random_image():
     global img
     attempts = 50
-    maxwidth = 2000
-    maxheight = 2000
     for _ in range(attempts):
         img = WebImage(imgur_linkgen()).get()
         if(image.width != 161 and image.height != 81):
             break
-        if(image.width > maxwidth and image.height > maxheight):
-            image.resize(size=(image.width/2, image.height/2))
     return img
 
 get_random_image()
@@ -60,6 +62,8 @@ image_display = tk.Label(root, image=img)
 image_display.pack(side="bottom")
 next_button = tk.Button(root, text="SHOW NEXT RANDOM IMAGE", command=display_next)
 next_button.pack(side="bottom", anchor="nw")
+save_button = tk.Button(root, text="SAVE IMAGE", command=save_image)
+save_button.pack(side="bottom", anchor="nw")
 
 if __name__ == "__main__":
     # TODO: Use threading and DearPyGUI for the interface
