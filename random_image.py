@@ -109,8 +109,13 @@ def display_next():
             imgur_id = linkgen[1]
             img_data = requests.get(link).content
             img_path = os.getcwd()+"/images/{}.jpg".format(imgur_id)
-            with open(img_path, 'wb') as writer:
-                writer.write(img_data)
+            while(1):
+                try:
+                    with open(img_path, 'wb') as writer:
+                        writer.write(img_data)
+                        break
+                except:
+                    os.mkdir("images")
             width, height, channels, data = dpg.load_image(img_path)
             with dpg.texture_registry():
                 texture_id = dpg.add_static_texture(width, height, data)
