@@ -8,7 +8,7 @@ import numpy
 import win32clipboard
 import sys
 import requests
-from PIL import ImageTk, Image, ImageFont, ImageDraw
+from PIL import Image, ImageFont, ImageDraw
 import dearpygui.dearpygui as dpg
 
 filedir=os.path.dirname(os.path.abspath(__file__))
@@ -86,10 +86,11 @@ def imgur_linkgen():
 
 def delete_image():
     if image_pointer > 0:
-        os.remove(os.getcwd()+"\\"+image_list[image_pointer-1].filepath)
+        os.remove(get_active_image().filepath)
         image_list.remove(image_list[image_pointer-1])
         display_previous()
 
+# TODO: Add loading timeout + animation
 # TODO: Functionalize delete, image fetching, and replace repeated get() calls
 def display_next():
     global image_list, image_pointer
@@ -98,7 +99,6 @@ def display_next():
         while(1):
             # TODO: Change how linkgen gets passed
             input_id = dpg.get_value("image_id_input")
-            print(input_id)
             # TODO: Update how this works if link size needs to change
             if input_id != None and len(input_id) == 5:
                 linkgen = ["https://i.imgur.com/{}.jpeg".format(input_id)] + [input_id]
@@ -108,7 +108,7 @@ def display_next():
             link = linkgen[0]
             imgur_id = linkgen[1]
             img_data = requests.get(link).content
-            img_path = 'images/{}.jpg'.format(imgur_id)
+            img_path = os.getcwd()+"/images/{}.jpg".format(imgur_id)
             with open(img_path, 'wb') as writer:
                 writer.write(img_data)
             width, height, channels, data = dpg.load_image(img_path)
@@ -120,24 +120,20 @@ def display_next():
                 set_active_image(image)
                 dpg.add_image(texture_id, tag=imgur_id, parent="display_window")
                 dpg.configure_item("display_window", label="Image Display: {}".format(get_active_image().image_id))
-                print(get_active_image().image_id)
                 image_pointer += 1
-                print(image_pointer, " ", len(image_list))
                 return None
             os.remove(img_path)
     else:
         set_active_image(image_list[image_pointer])
         image_pointer += 1
-        print(image_pointer, " ", len(image_list))
         dpg.add_image(get_active_image().texture_id, tag=get_active_image().image_id, parent="display_window")
         dpg.configure_item("display_window", label="Image Display: {}".format(get_active_image().image_id))
 
 def display_previous():
         global image_pointer
-        if image_pointer > 0:
+        if image_pointer > 1:
             dpg.delete_item("display_window", children_only=True)
             image_pointer -= 1
-            print(image_pointer, " ", len(image_list))
             set_active_image(image_list[image_pointer-1])
             with dpg.texture_registry():
                 texture_id = dpg.add_static_texture(get_active_image().width, get_active_image().height, get_active_image().data)
@@ -162,7 +158,7 @@ def dpg_thread():
                 dpg.add_button(tag="delete_button", label="DELETE", callback=delete_image)
                 dpg.add_button(tag="next_button", label="NEXT >", callback=display_next)
             dpg.add_text("Custom Imgur ID: ")
-            dpg.add_input_text(tag="image_id_input", default_value="")
+            dpg.add_input_text(tag="image_id_input", default_value="", width=100)
     dpg.set_item_pos("display_window", (0, cmd_window_height+75))
     dpg.set_item_pos("command_window", (0, 0))
     dpg.setup_dearpygui()
@@ -176,6 +172,5 @@ if __name__ == "__main__":
     # TODO: Add queue that caches a certain amount of items ahead of time for smooth loading of next file.
     gui_thread = threading.Thread(name="gui_thread", target=dpg_thread)
     gui_thread.start()
-    print("Thread test.")
     while(1):
         ...
