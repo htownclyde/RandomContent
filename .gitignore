@@ -2,3 +2,12 @@
 /build
 /dist
 *.spec
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.tiff
+*.gif
+*.mp3
+*.mp4
+*.webm
