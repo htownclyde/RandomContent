@@ -93,18 +93,23 @@ def delete_image():
 # TODO: Functionalize delete, image fetching, and replace repeated get() calls
 # TODO: Use threading to get 5+ images at once and throw out filtered/broken images, append good ones
 def display_next():
+    global image_list, active_image, image_pointer
     generate_threads = []
     try: gen_count = int(dpg.get_value("batch_input"))
     except: gen_count = 1
     if gen_count > 1 and image_pointer == len(image_list):
+        #start_index = image_pointer
         for i in range(gen_count):
             generate_threads.append(threading.Thread(name="generate_thread_{}".format(i), target=generate))
         for thread in generate_threads:
             thread.start()
-        #for i in range(gen_count-1):
-        #    display_last()
+        #for thread in generate_threads:
+        #    thread.join() 
+        #image_pointer = start_index
+        #active_image = image_list[image_pointer]
+        #display_previous()
     else:
-        generate()
+        generate(update=True)
 
 def display_first():
     global image_list, active_image, image_pointer
@@ -147,7 +152,7 @@ def display(texture_id=active_image.texture_id, tag=active_image.image_id, width
                         .format(image_pointer, len(image_list), active_image.image_id,
                                 active_image.width, active_image.height))
 
-def generate():
+def generate(update=False):
     global image_list, active_image, image_pointer
     if image_pointer == len(image_list):
         while(1):
@@ -182,18 +187,17 @@ def generate():
                 except:
                     dpg.configure_item("display_window", label="[{}/{}] Image Display: Problem getting content. Retrying...".format(image_pointer, len(image_list)))
 
-            try:
-                width, height, channels, data = dpg.load_image(img_path)
-            except:
-                ...
+            try: width, height, channels, data = dpg.load_image(img_path)
+            except: ...
             with dpg.texture_registry():
                 texture_id = dpg.add_static_texture(width, height, data)
             if width != 161 and height != 81:
                 image = RandomImage(img_path, imgur_id, width, height, channels, data, texture_id, active=True)
                 image_list.append(image)
                 active_image = image
-                image_pointer += 1
-                display(texture_id, imgur_id, width, height)
+                if update == True:
+                    image_pointer += 1
+                    display(texture_id, imgur_id, width, height)
                 return None
             os.remove(img_path) 
     else:
