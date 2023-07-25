@@ -121,7 +121,7 @@ def display_previous():
 
 def display_last():
     global image_list, active_image, image_pointer
-    if image_pointer != len(image_list) and image_pointer >= 1:
+    if image_pointer != len(image_list) and image_pointer >= 0:
         image_pointer = len(image_list)
         active_image = image_list[image_pointer-1]
         display()
