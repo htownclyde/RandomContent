@@ -11,8 +11,7 @@ from PIL import Image
 filedir=os.path.dirname(os.path.abspath(__file__))
 
 # TODO: Store images to folders, save file nicknames, lists, etc.
-link_list = []
-image_list = []
+link_list, image_list = [], []
 image_pointer = 0
 
 class RandomImage:
@@ -36,7 +35,7 @@ class RandomImage:
     
     def __repr__(self):
         return self.image_id
-    
+
 active_image = RandomImage(None, None, None, None, None, None, None, False)
 
 def send_to_clipboard():
@@ -47,7 +46,6 @@ def send_to_clipboard():
         image.convert("RGB").save(output, "BMP")
         data = output.getvalue()[14:]
         output.close()
-
         win32clipboard.OpenClipboard()
         win32clipboard.EmptyClipboard()
         win32clipboard.SetClipboardData(win32clipboard.CF_DIB, data)
@@ -81,17 +79,19 @@ def delete_image():
         try: 
             os.remove(active_image.filepath)
             image_list.remove(image_list[image_pointer-1])
+            dpg.delete_item(active_image.texture_id)
         except:
             ...
         if image_pointer > 1:
             display_previous()
         else:
             image_pointer -= 1
+            dpg.configure_item("display_window", label="[0/0] Image Display: None")
             dpg.delete_item("display_window", children_only=True)
+            if len(image_list) > 0:
+                display_next()
 
 # TODO: Add loading timeout + animation
-# TODO: Functionalize delete, image fetching, and replace repeated get() calls
-# TODO: Use threading to get 5+ images at once and throw out filtered/broken images, append good ones
 def display_next():
     global image_list, active_image, image_pointer
     generate_threads = []
@@ -148,7 +148,7 @@ def display(texture_id=active_image.texture_id, tag=active_image.image_id, width
 
 def generate(update=False):
     global image_list, active_image, image_pointer
-    if image_pointer == len(image_list):
+    if image_pointer == len(image_list) or update == False:
         while(1):
             # TODO: Change how linkgen gets passed
             input_id = dpg.get_value("image_id_input")
@@ -188,8 +188,8 @@ def generate(update=False):
             if width != 161 and height != 81:
                 image = RandomImage(img_path, imgur_id, width, height, channels, data, texture_id, active=True)
                 image_list.append(image)
-                active_image = image
                 if update == True:
+                    active_image = image
                     image_pointer += 1
                     display(texture_id, imgur_id, width, height)
                 return None
@@ -206,7 +206,7 @@ def dpg_thread():
     cmd_window_height = 25
     dpg.create_context()
     dpg.create_viewport(title='Random Image Tool', width=gui_width, height=gui_height)
-    with dpg.window(tag="display_window", label="Image Display", width=gui_width, height=gui_height-cmd_window_height):
+    with dpg.window(tag="display_window", label="[0/0] Image Display: None", width=gui_width, height=gui_height-cmd_window_height):
         ...
     with dpg.window(tag="command_window", label="Image Command Panel", height=cmd_window_height, width=gui_width):
         with dpg.group(horizontal=False):
@@ -221,7 +221,7 @@ def dpg_thread():
                 dpg.add_text("Custom Imgur ID:  ")
                 dpg.add_input_text(tag="image_id_input", default_value="", width=75)
             with dpg.group(horizontal=True):
-                dpg.add_text("Images per click: ")
+                dpg.add_text("Images Per Click: ")
                 dpg.add_input_text(tag="batch_input", default_value="1", width=50)
 
     dpg.set_item_pos("display_window", (0, cmd_window_height+75))
@@ -232,9 +232,7 @@ def dpg_thread():
     dpg.destroy_context()
 
 if __name__ == "__main__":
-    # TODO: Use threading and DearPyGUI for the interface
     # TODO: Add funcs for accessing other websites (spotify, yt, etc.), different filetypes, and more!
-    # TODO: Add queue that caches a certain amount of items ahead of time for smooth loading of next file.
     gui_thread = threading.Thread(name="gui_thread", target=dpg_thread)
     gui_thread.start()
     while(1):
