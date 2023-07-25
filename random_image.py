@@ -1,24 +1,18 @@
 import os
-from io import BytesIO
 import random
-import threading
-import dearpygui.dearpygui as dpg
-import urllib.request
-import numpy
-import win32clipboard
-import sys
 import requests
-from PIL import Image, ImageFont, ImageDraw
+import threading
+import win32clipboard
+from io import BytesIO
 import dearpygui.dearpygui as dpg
+from PIL import Image
 
 filedir=os.path.dirname(os.path.abspath(__file__))
-
-#root = tk.Tk()
-#root.title("RandomImage")
 
 # TODO: Store images to folders, save file nicknames, lists, etc.
 link_list = []
 image_list = []
+active_image = None
 image_pointer = 0
 
 class RandomImage:
@@ -45,9 +39,8 @@ class RandomImage:
 
 def send_to_clipboard():
     try:
-        filepath = get_active_image().filepath
+        filepath = active_image.filepath
         image = Image.open(filepath)
-
         output = BytesIO()
         image.convert("RGB").save(output, "BMP")
         data = output.getvalue()[14:]
@@ -60,41 +53,69 @@ def send_to_clipboard():
     except:
         ...
 
-def get_active_image():
-    for img in image_list:
-        if img.active == True:
-            return img
-    return None
-
-def set_active_image(image):
-    try:
-        get_active_image().active = False
-    except:
-        ...
-    image.active = True
-
-def rand_char():
-    return random.choice('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890')
+def rand_char(nums=True):
+   if nums == True: return random.choice('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890')
+   else: return random.choice('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ')
 
 def imgur_linkgen():
     imgur_id = ""
     for _ in range(5):
-        imgur_id += "{}".format(rand_char())
+        imgur_id += "{}".format(rand_char(True))
     link = "https://i.imgur.com/{}.jpeg".format(imgur_id)
     link_list.append(link)
     return [link] + [imgur_id]
 
+def imgbb_linkgen():
+    imgbb_id = ""
+    for _ in range(7):
+        imgbb_id += "{}".format(rand_char(True))
+    link = "https://ibb.co/{}".format(imgbb_id)
+    link_list.append(link)
+    return [link] + [imgbb_id]
+
 def delete_image():
-    if image_pointer > 0:
-        os.remove(get_active_image().filepath)
-        image_list.remove(image_list[image_pointer-1])
-        display_previous()
+    global image_list, active_image, image_pointer
+    if image_pointer > 0 and active_image != None:
+        try: 
+            os.remove(active_image.filepath)
+            image_list.remove(image_list[image_pointer-1])
+        except:
+            ...
+        if image_pointer > 1:
+            display_previous()
+        else:
+            image_pointer -= 1
+            dpg.delete_item("display_window", children_only=True)
+    print(image_pointer, len(image_list))
 
 # TODO: Add loading timeout + animation
 # TODO: Functionalize delete, image fetching, and replace repeated get() calls
+# TODO: Use threading to get 5+ images at once and throw out filtered/broken images, append good ones
 def display_next():
-    global image_list, image_pointer
+    generate()
+
+def display(texture_id, tag, width=0, height=0):
+    global image_list, active_image, image_pointer
+    print(image_pointer, len(image_list))
     dpg.delete_item("display_window", children_only=True)
+    if width < gui_width*0.85 and height < gui_height*0.75:
+        dpg.add_image(texture_id, tag=tag, parent="display_window")
+        dpg.configure_item("display_window", label="[{}/{}] Image Display: {} ({}x{}) (Original)"
+                        .format(image_pointer, len(image_list), active_image.image_id,
+                                active_image.width, active_image.height))
+    else:
+        new_height = gui_height*0.75
+        new_width = new_height*width/height
+        if new_width > gui_width*0.85:
+            new_width = gui_width*0.85
+            new_height = new_width*height/width
+        dpg.add_image(texture_id, tag=tag, width=new_width, height=new_height, parent="display_window")
+        dpg.configure_item("display_window", label="[{}/{}] Image Display: {} ({}x{}) (Resized)"
+                        .format(image_pointer, len(image_list), active_image.image_id,
+                                active_image.width, active_image.height))
+
+def generate():
+    global image_list, active_image, image_pointer
     if image_pointer == len(image_list):
         while(1):
             # TODO: Change how linkgen gets passed
@@ -104,50 +125,64 @@ def display_next():
                 linkgen = ["https://i.imgur.com/{}.jpeg".format(input_id)] + [input_id]
                 dpg.configure_item("image_id_input")
             else:
+                #linkgen = imgbb_linkgen()
                 linkgen = imgur_linkgen()
             link = linkgen[0]
             imgur_id = linkgen[1]
-            img_data = requests.get(link).content
-            img_path = os.getcwd()+"/images/{}.jpg".format(imgur_id)
             while(1):
                 try:
+                    dpg.configure_item("display_window", label="[{}/{}] Image Display: Getting next image...".format(image_pointer, len(image_list)))
+                    img_data = requests.get(link).content
+                    img_path = os.getcwd()+"/images/{}.jpg".format(imgur_id)
+                    break
+                except:
+                    ...
+            # TODO: Change how images folder is handled, how missing images are handled to save time
+            while(1):
+                try:
+                    os.mkdir("images")
+                except:
+                    ...
+                try:
                     with open(img_path, 'wb') as writer:
+                        #print(pybase64.b64decode(img_data))
                         writer.write(img_data)
                         break
                 except:
-                    os.mkdir("images")
-            width, height, channels, data = dpg.load_image(img_path)
+                    dpg.configure_item("display_window", label="[{}/{}] Image Display: Problem getting content. Retrying...".format(image_pointer, len(image_list)))
+
+            try:
+                width, height, channels, data = dpg.load_image(img_path)
+            except:
+                ...
             with dpg.texture_registry():
                 texture_id = dpg.add_static_texture(width, height, data)
-            if(width != 161 and height != 81):
+            if width != 161 and height != 81:
                 image = RandomImage(img_path, imgur_id, width, height, channels, data, texture_id, active=True)
                 image_list.append(image)
-                set_active_image(image)
-                dpg.add_image(texture_id, tag=imgur_id, parent="display_window")
-                dpg.configure_item("display_window", label="Image Display: {}".format(get_active_image().image_id))
+                active_image = image
                 image_pointer += 1
+                display(texture_id, imgur_id, width, height)
                 return None
-            os.remove(img_path)
+            os.remove(img_path) 
+    
+    #TODO: Fix index bug that happens when you delete every image and try to get the next one.
     else:
-        set_active_image(image_list[image_pointer])
         image_pointer += 1
-        dpg.add_image(get_active_image().texture_id, tag=get_active_image().image_id, parent="display_window")
-        dpg.configure_item("display_window", label="Image Display: {}".format(get_active_image().image_id))
+        active_image = image_list[image_pointer-1]
+        display(active_image.texture_id, active_image.image_id, active_image.width, active_image.height)
 
 def display_previous():
-        global image_pointer
+        global image_list, active_image, image_pointer
         if image_pointer > 1:
-            dpg.delete_item("display_window", children_only=True)
             image_pointer -= 1
-            set_active_image(image_list[image_pointer-1])
-            with dpg.texture_registry():
-                texture_id = dpg.add_static_texture(get_active_image().width, get_active_image().height, get_active_image().data)
-            dpg.add_image(texture_id, tag=get_active_image().image_id, parent="display_window")
-            dpg.configure_item("display_window", label="Image Display: {}".format(get_active_image().image_id))
-        else:
-            dpg.delete_item("display_window", children_only=True)
+            active_image = image_list[image_pointer-1]
+            #with dpg.texture_registry():
+            #    texture_id = dpg.add_static_texture(active_image.width, active_image.height, active_image.data)
+            display(active_image.texture_id, active_image.image_id, active_image.width, active_image.height)
 
 def dpg_thread():
+    global gui_width, gui_height
     gui_width = 1000
     gui_height = 800
     cmd_window_height = 25
