@@ -1,4 +1,5 @@
 import os
+import time
 import random
 import requests
 import threading
@@ -12,7 +13,6 @@ filedir=os.path.dirname(os.path.abspath(__file__))
 # TODO: Store images to folders, save file nicknames, lists, etc.
 link_list = []
 image_list = []
-active_image = None
 image_pointer = 0
 
 class RandomImage:
@@ -36,6 +36,8 @@ class RandomImage:
     
     def __repr__(self):
         return self.image_id
+    
+active_image = RandomImage(None, None, None, None, None, None, None, False)
 
 def send_to_clipboard():
     try:
@@ -86,7 +88,6 @@ def delete_image():
         else:
             image_pointer -= 1
             dpg.delete_item("display_window", children_only=True)
-    print(image_pointer, len(image_list))
 
 # TODO: Add loading timeout + animation
 # TODO: Functionalize delete, image fetching, and replace repeated get() calls
@@ -94,22 +95,43 @@ def delete_image():
 def display_next():
     generate()
 
-def display(texture_id, tag, width=0, height=0):
+def display_first():
     global image_list, active_image, image_pointer
-    print(image_pointer, len(image_list))
+    if image_pointer > 1:
+        image_pointer = 1
+        active_image = image_list[image_pointer-1]
+        display()
+
+def display_previous():
+        global image_list, active_image, image_pointer
+        if image_pointer > 1:
+            image_pointer -= 1
+            active_image = image_list[image_pointer-1]
+            display()
+
+def display_last():
+    global image_list, active_image, image_pointer
+    if image_pointer != len(image_list) and image_pointer >= 1:
+        image_pointer = len(image_list)
+        active_image = image_list[image_pointer-1]
+        display()
+
+def display(texture_id=active_image.texture_id, tag=active_image.image_id, width=active_image.width, height=active_image.height):
+    global image_list, active_image, image_pointer
+    while active_image.texture_id == None: ...
     dpg.delete_item("display_window", children_only=True)
-    if width < gui_width*0.85 and height < gui_height*0.75:
-        dpg.add_image(texture_id, tag=tag, parent="display_window")
+    if active_image.width < gui_width*0.95 and active_image.height < gui_height*0.75:
+        dpg.add_image(active_image.texture_id, tag=active_image.image_id, parent="display_window")
         dpg.configure_item("display_window", label="[{}/{}] Image Display: {} ({}x{}) (Original)"
                         .format(image_pointer, len(image_list), active_image.image_id,
                                 active_image.width, active_image.height))
     else:
         new_height = gui_height*0.75
-        new_width = new_height*width/height
-        if new_width > gui_width*0.85:
-            new_width = gui_width*0.85
-            new_height = new_width*height/width
-        dpg.add_image(texture_id, tag=tag, width=new_width, height=new_height, parent="display_window")
+        new_width = new_height*active_image.width/active_image.height
+        if new_width > gui_width*0.95:
+            new_width = gui_width*0.95
+            new_height = new_width*active_image.height/active_image.width
+        dpg.add_image(active_image.texture_id, tag=active_image.image_id, width=new_width, height=new_height, parent="display_window")
         dpg.configure_item("display_window", label="[{}/{}] Image Display: {} ({}x{}) (Resized)"
                         .format(image_pointer, len(image_list), active_image.image_id,
                                 active_image.width, active_image.height))
@@ -139,10 +161,8 @@ def generate():
                     ...
             # TODO: Change how images folder is handled, how missing images are handled to save time
             while(1):
-                try:
-                    os.mkdir("images")
-                except:
-                    ...
+                try: os.mkdir("images")
+                except: ...
                 try:
                     with open(img_path, 'wb') as writer:
                         #print(pybase64.b64decode(img_data))
@@ -170,16 +190,7 @@ def generate():
     else:
         image_pointer += 1
         active_image = image_list[image_pointer-1]
-        display(active_image.texture_id, active_image.image_id, active_image.width, active_image.height)
-
-def display_previous():
-        global image_list, active_image, image_pointer
-        if image_pointer > 1:
-            image_pointer -= 1
-            active_image = image_list[image_pointer-1]
-            #with dpg.texture_registry():
-            #    texture_id = dpg.add_static_texture(active_image.width, active_image.height, active_image.data)
-            display(active_image.texture_id, active_image.image_id, active_image.width, active_image.height)
+        display()
 
 def dpg_thread():
     global gui_width, gui_height
@@ -193,10 +204,12 @@ def dpg_thread():
     with dpg.window(tag="command_window", label="Image Command Panel", height=cmd_window_height, width=gui_width):
         with dpg.group(horizontal=False):
             with dpg.group(horizontal=True):
+                dpg.add_button(tag="start_button", label="<<", callback=display_first)
                 dpg.add_button(tag="back_button", label="< BACK", callback=display_previous)
                 dpg.add_button(tag="copy_button", label="COPY", callback=send_to_clipboard)
                 dpg.add_button(tag="delete_button", label="DELETE", callback=delete_image)
                 dpg.add_button(tag="next_button", label="NEXT >", callback=display_next)
+                dpg.add_button(tag="end_button", label=">>", callback=display_last)
             dpg.add_text("Custom Imgur ID: ")
             dpg.add_input_text(tag="image_id_input", default_value="", width=100)
     dpg.set_item_pos("display_window", (0, cmd_window_height+75))
