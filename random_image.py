@@ -93,7 +93,18 @@ def delete_image():
 # TODO: Functionalize delete, image fetching, and replace repeated get() calls
 # TODO: Use threading to get 5+ images at once and throw out filtered/broken images, append good ones
 def display_next():
-    generate()
+    generate_threads = []
+    try: gen_count = int(dpg.get_value("batch_input"))
+    except: gen_count = 1
+    if gen_count > 1 and image_pointer == len(image_list):
+        for i in range(gen_count):
+            generate_threads.append(threading.Thread(name="generate_thread_{}".format(i), target=generate))
+        for thread in generate_threads:
+            thread.start()
+        #for i in range(gen_count-1):
+        #    display_last()
+    else:
+        generate()
 
 def display_first():
     global image_list, active_image, image_pointer
@@ -185,8 +196,6 @@ def generate():
                 display(texture_id, imgur_id, width, height)
                 return None
             os.remove(img_path) 
-    
-    #TODO: Fix index bug that happens when you delete every image and try to get the next one.
     else:
         image_pointer += 1
         active_image = image_list[image_pointer-1]
@@ -210,8 +219,13 @@ def dpg_thread():
                 dpg.add_button(tag="delete_button", label="DELETE", callback=delete_image)
                 dpg.add_button(tag="next_button", label="NEXT >", callback=display_next)
                 dpg.add_button(tag="end_button", label=">>", callback=display_last)
-            dpg.add_text("Custom Imgur ID: ")
-            dpg.add_input_text(tag="image_id_input", default_value="", width=100)
+            with dpg.group(horizontal=True):
+                dpg.add_text("Custom Imgur ID:  ")
+                dpg.add_input_text(tag="image_id_input", default_value="", width=75)
+            with dpg.group(horizontal=True):
+                dpg.add_text("Images per click: ")
+                dpg.add_input_text(tag="batch_input", default_value="1", width=50)
+
     dpg.set_item_pos("display_window", (0, cmd_window_height+75))
     dpg.set_item_pos("command_window", (0, 0))
     dpg.setup_dearpygui()
