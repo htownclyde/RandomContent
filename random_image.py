@@ -98,16 +98,10 @@ def display_next():
     try: gen_count = int(dpg.get_value("batch_input"))
     except: gen_count = 1
     if gen_count > 1 and image_pointer == len(image_list):
-        #start_index = image_pointer
         for i in range(gen_count):
             generate_threads.append(threading.Thread(name="generate_thread_{}".format(i), target=generate))
         for thread in generate_threads:
             thread.start()
-        #for thread in generate_threads:
-        #    thread.join() 
-        #image_pointer = start_index
-        #active_image = image_list[image_pointer]
-        #display_previous()
     else:
         generate(update=True)
 
